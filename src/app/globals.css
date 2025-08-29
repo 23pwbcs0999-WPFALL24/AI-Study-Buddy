@@ -1,0 +1,75 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --background: #0b0f17;
+  --foreground: #e6e8ee;
+  --muted: #a3acc2;
+  --card: #0f1523;
+  --card-foreground: #e6e8ee;
+  --accent: #8b5cf6; /* violet-500 */
+  --accent-2: #06b6d4; /* cyan-500 */
+  --ring: rgba(139, 92, 246, 0.35);
+}
+
+.dark {
+  --background: #0b0f17;
+  --foreground: #e6e8ee;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: radial-gradient(1200px 800px at 80% -10%, rgba(139,92,246,0.08), transparent),
+              radial-gradient(900px 700px at 10% 10%, rgba(6,182,212,0.06), transparent),
+              var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+/* Smooth page mount */
+#root { opacity: 0; transform: translateY(6px); animation: pageIn .5s ease forwards; }
+@keyframes pageIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Card utility */
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(8px);
+  border-radius: 14px;
+}
+
+/* Button base + hover glow */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  color: var(--foreground);
+  transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.button:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(139,92,246,0.18); border-color: rgba(139,92,246,0.35); }
+.button:active { transform: translateY(0); }
+
+/* Accent gradient text */
+.gradient-text {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Divider */
+.hr {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+}
+
+
