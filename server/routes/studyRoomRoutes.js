@@ -1,21 +1,24 @@
-// routes/studyRoomRoutes.js
 const express = require("express");
-const router = express.Router();
 const studyRoomController = require("../controllers/studyRoomController");
 
-// Create a new room
+const router = express.Router();
+
+// Create a room
 router.post("/create", studyRoomController.createRoom);
 
 // Get all rooms
 router.get("/", studyRoomController.getRooms);
 
-// Get single room details
+// ✅ Get room by code (before "/:id")
+router.get("/code/:code", studyRoomController.getRoomByCode);
+
+// Get room by MongoDB ID
 router.get("/:id", studyRoomController.getRoomById);
 
 // Save a chat message
 router.post("/message", studyRoomController.saveMessage);
 
-// Get messages for a room
+// Get messages of a room
 router.get("/:roomId/messages", studyRoomController.getMessages);
 
 module.exports = router;

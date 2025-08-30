@@ -4,56 +4,66 @@ import { useEffect, useRef } from "react";
 import { backendUrl } from "@/lib/config";
 import { io, Socket } from "socket.io-client";
 
-export function useSocket(roomId: string, username: string, onMessage: (data: any) => void) {
+export function useSocket(
+  roomId: string,
+  userId: string,     // ✅ now using real userId
+  username: string,
+  onMessage: (data: any) => void
+) {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-      socketRef.current = io(backendUrl, {
-        path: "/socket.io",
-        transports: ["websocket"],
-        withCredentials: true,
-        timeout: 20000,
-        forceNew: true
-      });
+    if (!roomId || !userId || !username) return; // prevent empty joins
 
-      console.log("Initializing socket connection...");
-      
-      // Connection event listeners
-      socketRef.current.on("connect", () => {
-        console.log("Socket connected:", socketRef.current?.id);
-        if (username) {
-          console.log("Joining room after connection:", roomId);
-          socketRef.current?.emit("join-room", roomId, "me", username);
-        }
-      });
-      
-      socketRef.current.on("disconnect", () => {
-        console.log("Socket disconnected");
-      });
-      
-      socketRef.current.on("connect_error", (error: any) => {
-        console.error("Socket connection error:", error);
-      });
-      
-      socketRef.current.on("chat-message", onMessage);
-      socketRef.current.on("user-joined", onMessage);
-      socketRef.current.on("user-left", onMessage);
-    })();
+    // cleanup any existing socket before creating new
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
+
+    // create socket
+    const socket = io(backendUrl, {
+      path: "/socket.io",
+      transports: ["websocket"],
+      withCredentials: true,
+      timeout: 20000,
+      forceNew: true,
+      reconnection: true,              // ✅ auto reconnect
+      reconnectionAttempts: 5,         // ✅ retry 5 times
+      reconnectionDelay: 1000          // ✅ wait 1s between retries
+    });
+
+    socketRef.current = socket;
+
+    console.log("🔌 Initializing socket connection...");
+
+    // --- Connection lifecycle ---
+    socket.on("connect", () => {
+      console.log("✅ Socket connected:", socket.id);
+      socket.emit("join-room", roomId, userId, username);  // ✅ send real userId
+    });
+
+    socket.on("disconnect", () => {
+      console.log("⚠️ Socket disconnected");
+    });
+
+    socket.on("connect_error", (error: any) => {
+      console.error("❌ Socket connection error:", error.message);
+    });
+
+    // --- Listen to all server events ---
+    socket.on("chat-message", onMessage);
+    socket.on("user-joined", onMessage);
+    socket.on("user-left", onMessage);
+    socket.on("shared-note", onMessage);
+    socket.on("shared-quiz", onMessage);
+    socket.on("focus-mode", onMessage);
+
+    // cleanup
     return () => {
-      active = false;
-      if (socketRef.current) {
-        console.log("Disconnecting socket...");
-        socketRef.current.disconnect();
-      }
+      console.log("🛑 Disconnecting socket...");
+      socket.disconnect();
     };
-  }, [roomId, username]); // Only recreate socket when roomId or username changes
+  }, [roomId, userId, username]);
 
   return socketRef;
 }
-
-

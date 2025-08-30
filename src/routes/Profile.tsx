@@ -31,35 +31,21 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({ name: '', email: '' })
   const [lastUpdate, setLastUpdate] = useState(new Date())
-  
+
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
 
-  useEffect(() => {
-    loadProfile()
-    
-    // Set up real-time updates every 30 seconds
-    const interval = setInterval(() => {
-      loadProfile()
-      setLastUpdate(new Date())
-    }, 30000)
-
-    return () => clearInterval(interval)
-  }, [])
-
+  // --- Moved loadProfile above useEffect ---
   const loadProfile = async () => {
     if (!token) return
     setLoading(true)
     try {
-      const res = await fetch('/api/auth/profile', {
+      const res = await fetch('/api/progress', {
         headers: { Authorization: `Bearer ${token}` }
       })
       const data = await res.json()
       if (res.ok) {
         setProfile(data)
-        setEditForm({ 
-          name: data.name || '', 
-          email: data.email || '' 
-        })
+        setEditForm({ name: data.name || '', email: data.email || '' })
       }
     } catch (error) {
       console.error('Error loading profile:', error)
@@ -82,13 +68,21 @@ export default function Profile() {
       if (res.ok) {
         setProfile({ ...profile, ...editForm })
         setIsEditing(false)
-        // Refresh profile data after update
         loadProfile()
       }
     } catch (error) {
       console.error('Error updating profile:', error)
     }
   }
+
+  useEffect(() => {
+    loadProfile()
+    const interval = setInterval(() => {
+      loadProfile()
+      setLastUpdate(new Date())
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: '📊' },

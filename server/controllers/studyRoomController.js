@@ -65,16 +65,38 @@
 const StudyRoom = require('../models/studyRoomModel');
 const Message = require('../models/messageModel');
 const mongoose = require('mongoose');
-
+const { nanoid } = require("nanoid");
 // ✅ Create a study room
+// exports.createRoom = async (req, res, next) => {
+//   try {
+//     const { name } = req.body;
+//     if (!name?.trim()) {
+//       return res.status(400).json({ message: 'Room name required' });
+//     }
+//     const room = await StudyRoom.create({ name, createdBy: req.user?.id });
+//     res.status(201).json(room);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
 exports.createRoom = async (req, res, next) => {
   try {
     const { name } = req.body;
     if (!name?.trim()) {
-      return res.status(400).json({ message: 'Room name required' });
+      return res.status(400).json({ message: "Room name required" });
     }
-    const room = await StudyRoom.create({ name, createdBy: req.user?.id });
-    res.status(201).json(room);
+
+    const roomCode = nanoid(8); // short unique code
+    const room = await StudyRoom.create({
+      name,
+      roomCode,
+      createdBy: req.user?.id,
+    });
+
+    res.status(201).json({
+      ...room.toObject(),
+      shareUrl: `${process.env.FRONTEND_URL}/studyroom/${roomCode}`, // e.g., https://myapp.com/studyroom/abc123
+    });
   } catch (err) {
     next(err);
   }
@@ -111,6 +133,20 @@ exports.getRoomById = async (req, res, next) => {
     next(err);
   }
 };
+exports.getRoomByCode = async (req, res, next) => {
+  try {
+    const { code } = req.params;
+    const room = await StudyRoom.findOne({ roomCode: code })
+      .populate("createdBy", "username email");
+
+    if (!room) return res.status(404).json({ message: "Room not found" });
+    res.json(room);
+  } catch (err) {
+    next(err);
+  }
+};
+
+
 
 // ✅ Save chat message
 exports.saveMessage = async (req, res, next) => {
@@ -118,15 +154,15 @@ exports.saveMessage = async (req, res, next) => {
     const { roomId, userId, username, message, type } = req.body;
 
     if (!roomId || !username || !message) {
-      return res.status(400).json({ message: 'roomId, username, and message required' });
+      return res.status(400).json({ message: "roomId, username, and message required" });
     }
 
     const msg = await Message.create({
-      room: roomId,
+      room: roomId === "public-room" ? "public-room" : roomId, // ✅ supports both string & ObjectId
       userId: userId || null,
       username,
-      text: message, // 🔑 match frontend "message" field
-      type: type || 'message',
+      text: message,
+      type: type || "message",
     });
 
     res.status(201).json(msg);
@@ -134,6 +170,7 @@ exports.saveMessage = async (req, res, next) => {
     next(err);
   }
 };
+
 
 // ✅ Get messages of a room
 exports.getMessages = async (req, res, next) => {

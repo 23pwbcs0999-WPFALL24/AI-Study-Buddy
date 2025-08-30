@@ -1,12 +1,58 @@
 const User = require('../models/User');
+const Note = require('../models/Note');
 
-// @desc    Get user progress
+// @desc    Get user progress (Profile page)
+// @route   GET /api/progress
+// @access  Private
+// const getUserProgress = async (req, res) => {
+//   try {
+//     const user = await User.findById(req.user.id);
+
+//     if (!user) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'User not found'
+//       });
+//     }
+
+//     // Update last active + save
+//     user.updateLastActive();
+//     await user.save();
+
+//     const progress = {
+//       _id: user._id,
+//       name: user.name,
+//       email: user.email,
+//       createdAt: user.createdAt,
+//       stats: {
+//         totalNotes: user.stats?.totalNotes || 0,
+//         studyStreak: user.streaks?.current || 0,     // map streaks.current → studyStreak
+//         totalStudyTime: user.stats?.totalStudyTime || 0,
+//         lastActive: user.stats?.lastActive || new Date()
+//       },
+//       badges: user.badges || [],
+//       studyHistory: user.studyHistory || []
+//     };
+
+//     return res.status(200).json(progress);
+//   } catch (error) {
+//     console.error('Get user progress error:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Server error while fetching progress'
+//     });
+//   }
+// };
+// const User = require('../models/User');
+// const Note = require('../models/Note');
+
+// @desc    Get user progress (Profile page)
 // @route   GET /api/progress
 // @access  Private
 const getUserProgress = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -14,37 +60,32 @@ const getUserProgress = async (req, res) => {
       });
     }
 
-    // Update last active
+    // Always calculate from DB so it matches actual notes
+    const totalNotes = await Note.countDocuments({ user: user._id });
+
+    // Update last active + save
     user.updateLastActive();
     await user.save();
 
     const progress = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      createdAt: user.createdAt,
       stats: {
-        totalNotes: user.stats?.totalNotes || 0,
-        totalSummaries: user.stats?.totalSummaries || 0,
-        totalFlashcards: user.stats?.totalFlashcards || 0,
-        totalQuizzes: user.stats?.totalQuizzes || 0,
-        studyRoomsJoined: user.stats?.studyRoomsJoined || 0,
+        totalNotes,  // ✅ fixed (real DB count)
+        studyStreak: user.streaks?.current || 0,
         totalStudyTime: user.stats?.totalStudyTime || 0,
         lastActive: user.stats?.lastActive || new Date()
-      },
-      streaks: {
-        current: user.streaks?.current || 0,
-        longest: user.streaks?.longest || 0,
-        lastStudyDate: user.streaks?.lastStudyDate || null
       },
       badges: user.badges || [],
       studyHistory: user.studyHistory || []
     };
 
-    res.status(200).json({
-      success: true,
-      progress
-    });
-
+    return res.status(200).json(progress);
   } catch (error) {
     console.error('Get user progress error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Server error while fetching progress'
     });
@@ -56,41 +97,31 @@ const getUserProgress = async (req, res) => {
 // @access  Private
 const getUserStats = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-    
+    const userId = req.user.id;
+    const user = await User.findById(userId);
+
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Update last active
-    user.updateLastActive();
-    await user.save();
+    // Always fetch live counts
+    const totalNotes = await Note.countDocuments({ user: userId });
 
     const stats = {
-      totalNotes: user.stats?.totalNotes || 0,
+      totalNotes,
       studyStreak: user.streaks?.current || 0,
       totalStudyTime: user.stats?.totalStudyTime || 0,
       lastActive: user.stats?.lastActive || new Date(),
       totalSummaries: user.stats?.totalSummaries || 0,
       totalFlashcards: user.stats?.totalFlashcards || 0,
       totalQuizzes: user.stats?.totalQuizzes || 0,
-      badgesCount: user.badges?.length || 0
+      badgesCount: user.badges?.length || 0,
     };
 
-    res.status(200).json({
-      success: true,
-      stats
-    });
-
-  } catch (error) {
-    console.error('Get user stats error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching stats'
-    });
+    res.status(200).json({ success: true, stats });
+  } catch (err) {
+    console.error('Get user stats error:', err);
+    res.status(500).json({ success: false, message: 'Server error while fetching stats' });
   }
 };
 
@@ -100,7 +131,7 @@ const getUserStats = async (req, res) => {
 const updateStudyTime = async (req, res) => {
   try {
     const { minutes } = req.body;
-    
+
     if (!minutes || minutes <= 0) {
       return res.status(400).json({
         success: false,
@@ -109,7 +140,7 @@ const updateStudyTime = async (req, res) => {
     }
 
     const user = await User.findById(req.user.id);
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -117,14 +148,14 @@ const updateStudyTime = async (req, res) => {
       });
     }
 
-    // Update study time
+    // Update stats
     user.stats.totalStudyTime += minutes;
     user.updateLastActive();
     user.updateStreak();
-    
-    // Add to study history
+
+    // Push into study history
     user.studyHistory.push({
-      activity: 'study_room_joined',
+      activity: 'study_time',
       details: `Studied for ${minutes} minutes`,
       timestamp: new Date()
     });
@@ -136,7 +167,6 @@ const updateStudyTime = async (req, res) => {
       message: 'Study time updated successfully',
       totalStudyTime: user.stats.totalStudyTime
     });
-
   } catch (error) {
     console.error('Update study time error:', error);
     res.status(500).json({
@@ -152,9 +182,9 @@ const updateStudyTime = async (req, res) => {
 const getStudyHistory = async (req, res) => {
   try {
     const { limit = 20 } = req.query;
-    
+
     const user = await User.findById(req.user.id);
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -170,7 +200,6 @@ const getStudyHistory = async (req, res) => {
       success: true,
       history
     });
-
   } catch (error) {
     console.error('Get study history error:', error);
     res.status(500).json({
