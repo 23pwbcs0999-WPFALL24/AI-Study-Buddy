@@ -6,16 +6,16 @@ import { io, Socket } from "socket.io-client";
 
 export function useSocket(
   roomId: string,
-  userId: string,     // ✅ now using real userId
+  userId: string,
   username: string,
-  onMessage: (data: any) => void
+  onMessage: (event: { type: string; data?: any }) => void
 ) {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     if (!roomId || !userId || !username) return; // prevent empty joins
 
-    // cleanup any existing socket before creating new
+    // cleanup existing socket before new one
     if (socketRef.current) {
       socketRef.current.disconnect();
     }
@@ -23,23 +23,23 @@ export function useSocket(
     // create socket
     const socket = io(backendUrl, {
       path: "/socket.io",
-      transports: ["websocket"],
+      transports: ["websocket", "polling"], // safer fallback
       withCredentials: true,
       timeout: 20000,
       forceNew: true,
-      reconnection: true,              // ✅ auto reconnect
-      reconnectionAttempts: 5,         // ✅ retry 5 times
-      reconnectionDelay: 1000          // ✅ wait 1s between retries
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
     });
 
     socketRef.current = socket;
 
     console.log("🔌 Initializing socket connection...");
 
-    // --- Connection lifecycle ---
+    // --- Lifecycle ---
     socket.on("connect", () => {
       console.log("✅ Socket connected:", socket.id);
-      socket.emit("join-room", roomId, userId, username);  // ✅ send real userId
+      socket.emit("join-room",{ roomId, userId, username});
     });
 
     socket.on("disconnect", () => {
@@ -50,19 +50,27 @@ export function useSocket(
       console.error("❌ Socket connection error:", error.message);
     });
 
-    // --- Listen to all server events ---
-    socket.on("chat-message", onMessage);
-    socket.on("user-joined", onMessage);
-    socket.on("user-left", onMessage);
-    socket.on("shared-note", onMessage);
-    socket.on("shared-quiz", onMessage);
-    socket.on("focus-mode", onMessage);
+    // --- Standardized event forwarding ---
+    const forward = (type: string) => (data?: any) =>
+      onMessage({ type, data });
+
+    socket.on("chat-message", forward("chat-message"));
+    socket.on("user-joined", forward("user-joined"));
+    socket.on("user-left", forward("user-left"));
+    socket.on("shared-note", forward("shared-note"));
+    socket.on("shared-quiz", forward("shared-quiz"));
+    socket.on("focus-mode", forward("focus-mode"));
+    socket.on("session-started", forward("session-started"));
+    socket.on("session-stopped", forward("session-stopped"));
+    socket.on("active-users", forward("active-users"));
 
     // cleanup
     return () => {
       console.log("🛑 Disconnecting socket...");
       socket.disconnect();
     };
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, userId, username]);
 
   return socketRef;

@@ -1,326 +1,6 @@
-// import { useCallback, useState, useEffect, useRef } from 'react'
-// import { useSocket } from '@/hooks/useSocket'
-// import { useNavigate } from "react-router-dom";
-// import { useParams } from "react-router-dom";
-// interface StudySession {
-//   id: string
-//   name: string
-//   duration: number
-//   isActive: boolean
-//   startTime?: Date
-// }
-
-// interface Message {
-//   id: string
-//   user: string
-//   text: string
-//   timestamp: Date
-//   type: 'message' | 'join' | 'leave' | 'focus'
-// }
-
-// export default function StudyRoom() {
-//   const { code } = useParams();
-//   const [roomId, setRoomId] = useState(code || "public-room");
-//   // const [roomId, setRoomId] = useState('public-room')
-//   const [messages, setMessages] = useState<Message[]>([])
-//   const [input, setInput] = useState('')
-//   const [username, setUsername] = useState('')
-//   const [isConnected, setIsConnected] = useState(false)
-//   const [socketReady, setSocketReady] = useState(false)
-//   const [activeUsers, setActiveUsers] = useState<string[]>([])
-//   const [studySessions, setStudySessions] = useState<StudySession[]>([])
-//   const [currentSession, setCurrentSession] = useState<StudySession | null>(null)
-//   const [timeLeft, setTimeLeft] = useState(0)
-//   const [isFocusMode, setIsFocusMode] = useState(false)
-//   const [showSettings, setShowSettings] = useState(false)
-  
-//   const socketRef = useSocket(roomId, username, handleMessage)
-//   const timerRef = useRef<NodeJS.Timeout | null>(null)
-//   const navigate = useNavigate();
-
-//   // Listen for socket connection status
-//   useEffect(() => {
-//     const socket = socketRef.current;
-//     if (!socket) return;
-
-//     const handleConnect = () => {
-//       console.log('Socket connected in StudyRoom');
-//       setSocketReady(true);
-//     };
-//     const handleDisconnect = () => {
-//       console.log('Socket disconnected in StudyRoom');
-//       setSocketReady(false);
-//       setIsConnected(false);
-//     };
-
-//     socket.on('connect', handleConnect);
-//     socket.on('disconnect', handleDisconnect);
-
-//     // Set initial state if already connected
-//     if (socket.connected) setSocketReady(true);
-
-//     return () => {
-//       socket.off('connect', handleConnect);
-//       socket.off('disconnect', handleDisconnect);
-//     };
-//   }, [socketRef.current, roomId])
-
-//   const predefinedSessions: StudySession[] = [
-//     { id: 'pomodoro', name: 'Pomodoro (25min)', duration: 25 * 60, isActive: false },
-//     { id: 'short-break', name: 'Short Break (5min)', duration: 5 * 60, isActive: false },
-//     { id: 'long-break', name: 'Long Break (15min)', duration: 15 * 60, isActive: false },
-//     { id: 'deep-focus', name: 'Deep Focus (50min)', duration: 50 * 60, isActive: false },
-//     { id: 'quick-study', name: 'Quick Study (15min)', duration: 15 * 60, isActive: false },
-//   ]
-
-//   useEffect(() => {
-//     // Generate random username if not set
-//     if (!username) {
-//       setUsername(`Student${Math.floor(Math.random() * 1000)}`)
-//     }
-//   }, [username])
-
-//   // Auto-join room when socket is ready and username is set
-//   useEffect(() => {
-//     if (
-//       socketRef.current &&
-//       socketRef.current.connected &&
-//       username &&
-//       !isConnected
-//     ) {
-//       socketRef.current.emit('join-room', roomId, 'me', username)
-//       setIsConnected(true)
-//     }
-//   }, [socketRef.current?.connected, username, isConnected, roomId])
-
-//   useEffect(() => {
-//     if (currentSession && currentSession.isActive) {
-//       timerRef.current = setInterval(() => {
-//         setTimeLeft(prev => {
-//           if (prev <= 1) {
-//             if (timerRef.current) {
-//               clearInterval(timerRef.current)
-//             }
-//             handleSessionComplete()
-//             return 0
-//           }
-//           return prev - 1
-//         })
-//       }, 1000)
-//     }
-
-//     return () => {
-//       if (timerRef.current) {
-//         clearInterval(timerRef.current)
-//       }
-//     }
-//   }, [currentSession])
-
-//   function handleMessage(data: any) {
-//     const message: Message = {
-//       id: Date.now().toString() + Math.random().toString(36).slice(2),
-//       user: data.username || data.userId,
-//       text: data.message,
-//       timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
-//       type: data.type || 'message'
-//     }
-//     setMessages(prev => [...prev, message])
-
-//     if (data.type === 'join') {
-//       setActiveUsers(prev => [...new Set([...prev, data.username])])
-//     } else if (data.type === 'leave') {
-//       setActiveUsers(prev => prev.filter(user => user !== data.username))
-//     }
-//   }
-
-//   function sendMessage() {
-//     const msg = input.trim()
-//     if (!msg || !socketRef.current) {
-//       console.log('Cannot send message:', { msg: !!msg, socket: !!socketRef.current })
-//       return
-//     }
-    
-//     // Check if socket is connected
-//     if (!socketRef.current.connected) {
-//       console.log('Socket not connected, attempting to reconnect...')
-//       socketRef.current.connect()
-//       return
-//     }
-    
-//     // Check if we're connected to the room
-//     if (!isConnected) {
-//       console.log('Not connected to room, attempting to join...')
-//       joinRoom()
-//       return
-//     }
-    
-//     const payload = { 
-//       roomId, 
-//       userId: 'me', 
-//       username, 
-//       message: msg,
-//       type: 'message'
-//     }
-    
-//     console.log('Sending message:', payload)
-//     socketRef.current.emit('chat-message', payload)
-//     setInput('')
-//   }
-
-//   function joinRoom() {
-//     if (!socketRef.current || !username.trim()) {
-//       console.log('Cannot join room:', { socket: !!socketRef.current, username: !!username.trim() })
-//       return
-//     }
-
-//     // Check if socket is connected
-//     if (!socketRef.current.connected) {
-//       console.log('Socket not connected, attempting to connect...')
-//       socketRef.current.connect()
-//       return
-//     }
-
-//     socketRef.current.emit('join-room', roomId, 'me', username)
-//     setIsConnected(true)
-//     setActiveUsers(prev => [...new Set([...prev, username])])
-//   }
-
-//   // Leave room handler
-//   function leaveRoom() {
-//     if (!socketRef.current) return;
-//     socketRef.current.emit('leave-room', roomId, 'me', username);
-//     socketRef.current.disconnect();
-//     setIsConnected(false);
-//     setActiveUsers(prev => prev.filter(user => user !== username));
-//     navigate("/dashboard"); // or your desired route
-//   }
-
-//   function startSession(session: StudySession) {
-//     const newSession: StudySession = {
-//       ...session,
-//       id: Date.now().toString(),
-//       isActive: true,
-//       startTime: new Date()
-//     }
-    
-//     setCurrentSession(newSession)
-//     setTimeLeft(session.duration)
-//     setStudySessions(prev => [...prev, newSession])
-    
-//     // Notify others
-//     if (socketRef.current) {
-//       const payload = {
-//         roomId,
-//         userId: 'me',
-//         username,
-//         message: `${username} started a ${session.name} session`,
-//         type: 'focus'
-//       }
-//       socketRef.current.emit('chat-message', payload)
-//     }
-//   }
-
-//   function pauseSession() {
-//     if (currentSession) {
-//       setCurrentSession({ ...currentSession, isActive: false })
-//       if (timerRef.current) {
-//         clearInterval(timerRef.current)
-//       }
-//     }
-//   }
-
-//   function resumeSession() {
-//     if (currentSession) {
-//       setCurrentSession({ ...currentSession, isActive: true })
-//     }
-//   }
-
-//   function stopSession() {
-//     if (currentSession) {
-//       setCurrentSession(null)
-//       setTimeLeft(0)
-//       if (timerRef.current) {
-//         clearInterval(timerRef.current)
-//       }
-//     }
-//   }
-
-//   function handleSessionComplete() {
-//     setCurrentSession(null)
-//     setTimeLeft(0)
-    
-//     // Play notification sound
-//     const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT')
-//     audio.play()
-    
-//     // Send completion message
-//     if (socketRef.current) {
-//       const payload = {
-//         roomId,
-//         userId: 'me',
-//         username,
-//         message: `${username} completed their study session!`,
-//         type: 'message'
-//       }
-//       socketRef.current.emit('chat-message', payload)
-//     }
-//   }
-
-//   function formatTime(seconds: number): string {
-//     const mins = Math.floor(seconds / 60)
-//     const secs = seconds % 60
-//     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-//   }
-
-//   function toggleFocusMode() {
-//     setIsFocusMode(!isFocusMode)
-//   }
-
-//   return (
-//     <div className="space-y-6">
-//      {/* Header */}
-// <div className="flex items-center justify-between">
-//   <div>
-//     <h1 className="text-3xl font-bold text-white">Study Room</h1>
-//     <p className="text-white/60 mt-1">
-//       Collaborative study environment with focus tools
-//     </p>
-//   </div>
-//   <div className="flex items-center gap-4">
-//     <button
-//       onClick={toggleFocusMode}
-//       className={`button ${
-//         isFocusMode
-//           ? "bg-green-600 hover:bg-green-700"
-//           : "bg-white/10 hover:bg-white/20"
-//       }`}
-//     >
-//       {isFocusMode ? "🔴 Exit Focus" : "🟢 Focus Mode"}
-//     </button>
-
-//     {/* ✅ Copy Invite Link button */}
-//     <button
-//       onClick={() => {
-//         navigator.clipboard.writeText(window.location.href);
-//         alert("Room link copied! Share it with your friend 🚀");
-//       }}
-//       className="button bg-blue-600 hover:bg-blue-700"
-//     >
-//       🔗 Copy Invite Link
-//     </button>
-
-//     <button
-//       onClick={() => setShowSettings(!showSettings)}
-//       className="button bg-white/10 hover:bg-white/20"
-//     >
-//       ⚙️ Settings
-//     </button>
-//   </div>
-// </div>
-//////////
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSocket } from "@/hooks/useSocket";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface StudySession {
   id: string;
@@ -335,16 +15,22 @@ interface Message {
   user: string;
   text: string;
   timestamp: Date;
-  type: "message" | "join" | "leave" | "focus";
+  type: "message" | "focus" | "join" | "leave";
 }
 
 export default function StudyRoom() {
-  const { code } = useParams<{ code: string }>();
-  const [roomId, setRoomId] = useState(code || "public-room");
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const codeParam = queryParams.get("code");
+  const code = codeParam && codeParam !== "undefined" ? codeParam : "";
+
+  const [roomId, setRoomId] = useState(code);
+  const [roomName, setRoomName] = useState("");
+  const [username, setUsername] = useState("");
+  const [joined, setJoined] = useState(false);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [username, setUsername] = useState("");
-  const [userId] = useState(() => crypto.randomUUID());
   const [activeUsers, setActiveUsers] = useState<string[]>([]);
   const [studySessions, setStudySessions] = useState<StudySession[]>([]);
   const [currentSession, setCurrentSession] = useState<StudySession | null>(null);
@@ -354,65 +40,38 @@ export default function StudyRoom() {
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const navigate = useNavigate();
+  const [userId] = useState(() => crypto.randomUUID());
 
-  // Handle chat + join/leave
-  const handleMessage = useCallback((data: any) => {
-    const message: Message = {
-      id: Date.now().toString() + Math.random().toString(36).slice(2),
-      user: data.username || data.userId,
-      text: data.message,
-      timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
-      type: data.type || "message",
-    };
-    setMessages((prev) => [...prev, message]);
+  // --- SOCKET ---
+  const socketRef = useSocket(
+    joined && roomId && username ? roomId : "",
+    joined && roomId && username ? userId : "",
+    joined && roomId && username ? username : "",
+    handleMessage
+  );
 
-    if (data.type === "join") {
-      setActiveUsers((prev) => [...new Set([...prev, data.username])]);
-    } else if (data.type === "leave") {
-      setActiveUsers((prev) => prev.filter((user) => user !== data.username));
+  function handleMessage(event: { type: string; data?: any }) {
+    const data = event.data || {};
+    if (event.type === "active-users") {
+      setActiveUsers((data || []).map((u: any) => u.username || u.userId || "Unknown"));
+      return;
     }
-  }, []);
-
-  const socketRef = useSocket(roomId, userId, username, handleMessage);
-
-  const predefinedSessions: StudySession[] = [
-    { id: "pomodoro", name: "Pomodoro (25min)", duration: 25 * 60, isActive: false },
-    { id: "short-break", name: "Short Break (5min)", duration: 5 * 60, isActive: false },
-    { id: "long-break", name: "Long Break (15min)", duration: 15 * 60, isActive: false },
-    { id: "deep-focus", name: "Deep Focus (50min)", duration: 50 * 60, isActive: false },
-    { id: "quick-study", name: "Quick Study (15min)", duration: 15 * 60, isActive: false },
-  ];
-
-  useEffect(() => {
-    if (!username) setUsername(`Student${Math.floor(Math.random() * 1000)}`);
-  }, [username]);
-
-  // ✅ Listen for "session-started" broadcast from server
-  useEffect(() => {
-    if (!socketRef.current) return;
-
-    const handleSessionStarted = (data: {
-      sessionType: string;
-      duration: number;
-      endTime: number;
-      startedBy: string;
-    }) => {
+    if (event.type === "session-started") {
+      const rem = Math.max(0, Math.floor((data.endTime - Date.now()) / 1000));
       setCurrentSession({
-        id: Date.now().toString(),
-        name: data.sessionType,
+        id: data.sessionId,
+        name: data.sessionName,
         duration: data.duration,
         isActive: true,
         startTime: new Date(),
       });
+      setTimeLeft(rem);
 
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = setInterval(() => {
-        const remaining = Math.max(
-          0,
-          Math.floor((data.endTime - Date.now()) / 1000)
-        );
-        setTimeLeft(remaining);
-        if (remaining <= 0 && timerRef.current) {
+        const newRem = Math.max(0, Math.floor((data.endTime - Date.now()) / 1000));
+        setTimeLeft(newRem);
+        if (newRem <= 0 && timerRef.current) {
           clearInterval(timerRef.current);
           setCurrentSession(null);
         }
@@ -423,23 +82,99 @@ export default function StudyRoom() {
         {
           id: Date.now().toString(),
           user: data.startedBy,
-          text: `started a ${data.sessionType} session`,
+          text: `started a ${data.sessionName} session`,
+          timestamp: new Date(),
+          type: "focus",
+        },
+      ]);
+      return;
+    }
+    if (event.type === "session-stopped") {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setCurrentSession(null);
+      setTimeLeft(0);
+      return;
+    }
+    const message: Message = {
+      id: Date.now().toString() + Math.random().toString(36).slice(2),
+      user: data.username || data.user || data.userId || data.startedBy || "Unknown",
+      text: data.message || data.text,
+      timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
+      type: data.type || event.type || "message",
+    };
+    setMessages((prev) => [...prev, message]);
+  }
+
+  const predefinedSessions: StudySession[] = [
+    { id: "pomodoro", name: "Pomodoro (25min)", duration: 25 * 60, isActive: false },
+    { id: "short-break", name: "Short Break (5min)", duration: 5 * 60, isActive: false },
+    { id: "long-break", name: "Long Break (15min)", duration: 15 * 60, isActive: false },
+    { id: "deep-focus", name: "Deep Focus (50min)", duration: 50 * 60, isActive: false },
+    { id: "quick-study", name: "Quick Study (15min)", duration: 15 * 60, isActive: false },
+  ];
+
+  // --- Session listeners ---
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    const handleSessionStarted = (data: {
+      sessionId: string;
+      sessionName: string;
+      duration: number;
+      endTime: number;
+      startedBy: string;
+    }) => {
+      const rem = Math.max(0, Math.floor((data.endTime - Date.now()) / 1000));
+      setCurrentSession({
+        id: data.sessionId,
+        name: data.sessionName,
+        duration: data.duration,
+        isActive: true,
+        startTime: new Date(),
+      });
+      setTimeLeft(rem);
+
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        const newRem = Math.max(0, Math.floor((data.endTime - Date.now()) / 1000));
+        setTimeLeft(newRem);
+        if (newRem <= 0 && timerRef.current) {
+          clearInterval(timerRef.current);
+          setCurrentSession(null);
+        }
+      }, 1000);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          user: data.startedBy,
+          text: `started a ${data.sessionName} session`,
           timestamp: new Date(),
           type: "focus",
         },
       ]);
     };
 
+    const handleSessionStopped = () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setCurrentSession(null);
+      setTimeLeft(0);
+    };
+
     socketRef.current.on("session-started", handleSessionStarted);
+    socketRef.current.on("session-stopped", handleSessionStopped);
+
     return () => {
       socketRef.current?.off("session-started", handleSessionStarted);
+      socketRef.current?.off("session-stopped", handleSessionStopped);
     };
   }, [socketRef]);
 
+  // --- Messaging ---
   function sendMessage() {
     const msg = input.trim();
     if (!msg || !socketRef.current) return;
-
     socketRef.current.emit("chat-message", {
       roomId,
       userId,
@@ -450,15 +185,28 @@ export default function StudyRoom() {
     setInput("");
   }
 
+  // --- Leave Room ---
   function leaveRoom() {
-    if (!socketRef.current) return;
-    socketRef.current.emit("leave-room", roomId, userId, username);
-    socketRef.current.disconnect();
-    setActiveUsers((prev) => prev.filter((user) => user !== username));
+    if (socketRef.current) {
+      socketRef.current.emit("leave-room", {
+        roomId,
+        userId,
+        username,
+      });
+      socketRef.current.disconnect();
+    }
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    setActiveUsers([]);
+    setJoined(false);
+    setCurrentSession(null);
+    setMessages([]);
+    setTimeLeft(0);
+
     navigate("/dashboard");
   }
 
-  // ✅ Emit dedicated "start-session" instead of chat-message
+  // --- Session controls ---
   function startSession(session: StudySession) {
     const newSession: StudySession = {
       ...session,
@@ -470,47 +218,39 @@ export default function StudyRoom() {
     setTimeLeft(session.duration);
     setStudySessions((prev) => [...prev, newSession]);
 
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current!);
+          setCurrentSession(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
     if (socketRef.current) {
       socketRef.current.emit("start-session", {
         roomId,
-        sessionType: session.name,
+        sessionId: newSession.id,
+        sessionName: session.name,
         duration: session.duration,
         startedBy: username,
       });
     }
   }
 
-  function pauseSession() {
-    if (currentSession) {
-      setCurrentSession({ ...currentSession, isActive: false });
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-  }
-
-  function resumeSession() {
-    if (currentSession) setCurrentSession({ ...currentSession, isActive: true });
-  }
-
   function stopSession() {
-    if (currentSession) {
-      setCurrentSession(null);
-      setTimeLeft(0);
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-  }
-
-  function handleSessionComplete() {
-    setCurrentSession(null);
-    setTimeLeft(0);
-    if (socketRef.current) {
-      socketRef.current.emit("chat-message", {
+    if (currentSession && socketRef.current) {
+      socketRef.current.emit("stop-session", {
         roomId,
-        userId,
-        username,
-        message: `${username} completed their study session!`,
-        type: "message",
+        stoppedBy: username,
       });
     }
+    if (timerRef.current) clearInterval(timerRef.current);
+    setCurrentSession(null);
+    setTimeLeft(0);
   }
 
   function formatTime(seconds: number): string {
@@ -519,6 +259,80 @@ export default function StudyRoom() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }
 
+  // --- Create/Join UI ---
+  if (!joined) {
+    if (code) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+          <div className="card p-8 w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-4 text-white">Enter Your Name to Join Room</h2>
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg bg-white/5 text-white mb-4"
+              placeholder="Your name"
+            />
+            <button
+              className="button bg-green-600 hover:bg-green-700 w-full"
+              onClick={() => {
+                if (username && code) {
+                  setRoomId(code);
+                  setJoined(true);
+                }
+              }}
+            >
+              Join Room
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+        <div className="card p-8 w-full max-w-md">
+          <h2 className="text-2xl font-bold mb-4 text-white">Create a Study Room</h2>
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg bg-white/5 text-white mb-4"
+            placeholder="Your name"
+          />
+          <input
+            value={roomName}
+            onChange={(e) => setRoomName(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg bg-white/5 text-white mb-4"
+            placeholder="Room name"
+          />
+          <button
+            className="button bg-blue-600 hover:bg-blue-700 w-full"
+            onClick={async () => {
+              if (username && roomName) {
+                const res = await fetch("/api/studyrooms/create", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ name: roomName }),
+                  credentials: "include",
+                });
+                const data = await res.json();
+                const newCode = data.code || data.room?.code;
+                if (newCode) {
+                  setRoomId(newCode);
+                  setJoined(true);
+                  window.history.replaceState({}, "", `/dashboard/study-room?code=${newCode}`);
+                } else {
+                  alert("Error: No room code received from server");
+                }
+              }
+            }}
+          >
+            Create Room
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Main Room UI ---
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -538,8 +352,14 @@ export default function StudyRoom() {
           </button>
           <button
             onClick={() => {
-              navigator.clipboard.writeText(window.location.href);
-              alert("Room link copied! 🚀");
+              if (roomId && roomId !== "undefined") {
+                navigator.clipboard.writeText(
+                  `${window.location.origin}/dashboard/study-room?code=${roomId}`
+                );
+                alert("Room link copied! 🚀");
+              } else {
+                alert("Room ID is not set yet.");
+              }
             }}
             className="button bg-blue-600 hover:bg-blue-700"
           >
@@ -554,19 +374,19 @@ export default function StudyRoom() {
         </div>
       </div>
 
-      {/* Connection Panel */}
+      {/* Room Settings */}
       <div className="card p-6">
         <h3 className="text-lg font-semibold text-white mb-4">Room Settings</h3>
         <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
           <input
             value={roomId}
-            onChange={(e) => setRoomId(e.target.value)}
+            disabled
             className="w-full px-4 py-2 rounded-lg bg-white/5 text-white"
             placeholder="Room ID"
           />
           <input
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            disabled
             className="w-full px-4 py-2 rounded-lg bg-white/5 text-white"
             placeholder="Your name"
           />
@@ -580,24 +400,26 @@ export default function StudyRoom() {
       <div className="card p-4">
         <h3 className="text-lg font-semibold text-white mb-2">Active Users</h3>
         <div className="flex flex-wrap gap-2">
-          {activeUsers.map((u) => (
-            <span key={u} className="px-3 py-1 bg-white/10 rounded-full text-white text-sm">
+          {activeUsers.map((u, idx) => (
+            <span key={u + idx} className="px-3 py-1 bg-white/10 rounded-full text-white text-sm">
               {u}
             </span>
           ))}
         </div>
       </div>
 
-      {/* Timer + Sessions */}
+      {/* Sessions */}
       <div className="card p-4">
         <h3 className="text-lg font-semibold text-white mb-2">Study Sessions</h3>
         {currentSession ? (
           <div className="space-y-2">
-            <p className="text-white">⏳ {currentSession.name}: {formatTime(timeLeft)}</p>
+            <p className="text-white">
+              ⏳ {currentSession.name}: {formatTime(timeLeft)}
+            </p>
             <div className="flex gap-2">
-              <button onClick={pauseSession} className="button bg-yellow-600 hover:bg-yellow-700">⏸ Pause</button>
-              <button onClick={resumeSession} className="button bg-green-600 hover:bg-green-700">▶ Resume</button>
-              <button onClick={stopSession} className="button bg-red-600 hover:bg-red-700">⏹ Stop</button>
+              <button onClick={stopSession} className="button bg-red-600 hover:bg-red-700">
+                ⏹ Stop
+              </button>
             </div>
           </div>
         ) : (
@@ -623,7 +445,7 @@ export default function StudyRoom() {
             if (m.type === "focus") {
               return (
                 <div key={m.id} className="text-blue-400 font-semibold">
-                  ⏳ {m.text}
+                  ⏳ <strong>{m.user}</strong> {m.text}
                 </div>
               );
             }
